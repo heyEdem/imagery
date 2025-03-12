@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Image Dashboard</title>
+</head>
+<body>
+<h1>Image Dashboard</h1>
+<div>
+    <a href="/upload">Upload New Image</a>
+</div>
+<div class="image-grid">
+    <div th:each="image : ${images}">
+        <img th:src="${image}" alt="Image" width="200" height="200"/>
+    </div>
+</div>
+<!-- Add pagination controls here -->
+</body>
+</html>
