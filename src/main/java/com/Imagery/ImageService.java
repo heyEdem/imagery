@@ -34,42 +34,41 @@ public class ImageService {
         Map<String, Object> result = new HashMap<>();
         List<String> imageUrls = new ArrayList<>();
 
-        List<S3Object> allObjects = new ArrayList<>();
-        String continuationToken = null;
+        // Get continuation token for the requested page
+        String continuationToken = page > 0 ? pageTokenMap.get(page - 1) : null;
 
-        do {
-            ListObjectsV2Request.Builder requestBuilder = ListObjectsV2Request.builder()
-                    .bucket(BUCKET_NAME)
-                    .maxKeys(size * (page + 1)); // Fetch more than needed to ensure proper sorting
+        ListObjectsV2Request.Builder requestBuilder = ListObjectsV2Request.builder()
+                .bucket(BUCKET_NAME)
+                .maxKeys(size);
 
-            if (continuationToken != null) {
-                requestBuilder.continuationToken(continuationToken);
-            }
+        if (continuationToken != null && !continuationToken.isEmpty()) {
+            requestBuilder.continuationToken(continuationToken);
+        }
 
-            ListObjectsV2Response response = s3Client.listObjectsV2(requestBuilder.build());
-            allObjects.addAll(response.contents());
+        ListObjectsV2Response response = s3Client.listObjectsV2(requestBuilder.build());
 
-            continuationToken = response.isTruncated() ? response.nextContinuationToken() : null;
-        } while (continuationToken != null && allObjects.size() < size * (page + 1));
-
-        // Sort images by latest upload
-        List<S3Object> sortedObjects = allObjects.stream()
-                .sorted(Comparator.comparing(S3Object::lastModified).reversed())
-                .collect(Collectors.toList());
-
-        // Paginate properly
-        int start = page * size;
-        int end = Math.min(start + size, sortedObjects.size());
-
-        imageUrls = sortedObjects.subList(start, end).stream()
+        // Process images and generate presigned URLs
+        List<S3Object> objects = response.contents();
+        imageUrls = objects.stream()
                 .filter(s3Object -> isImage(s3Object.key()))
                 .map(obj -> generatePresignedUrl(obj.key()))
                 .collect(Collectors.toList());
 
+        // Store the next continuation token for subsequent pages
+        if (response.isTruncated()) {
+            pageTokenMap.put(page, response.nextContinuationToken());
+            result.put("hasNextPage", true);
+        } else {
+            result.put("hasNextPage", false);
+        }
+
+        // Calculate total count for proper pagination display
+        long totalCount = countTotalImages();
+        int totalPages = (int) Math.ceil((double) totalCount / size);
+
         result.put("images", imageUrls);
-        result.put("totalPages", (int) Math.ceil((double) countTotalImages() / size));
+        result.put("totalPages", Math.max(1, totalPages));
         result.put("currentPage", page);
-        result.put("hasNextPage", end < sortedObjects.size());
 
         return result;
     }
@@ -151,20 +150,21 @@ public class ImageService {
 
         return "success";
     }
-    public String deleteImage(String objectKey) {
+    public boolean deleteImage(String imageKey) {
         try {
             DeleteObjectRequest deleteObjectRequest = DeleteObjectRequest.builder()
                     .bucket(BUCKET_NAME)
-                    .key(objectKey)
+                    .key(imageKey)
                     .build();
 
             s3Client.deleteObject(deleteObjectRequest);
-            return "deleted";
+            return true;
         } catch (S3Exception e) {
             e.printStackTrace();
-            return "error";
+            return false;
         }
     }
+
 
 }
 

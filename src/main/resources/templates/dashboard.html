@@ -176,7 +176,7 @@
         <span class="close-btn" onclick="closeModal()">&times;</span>
         <img id="modalImage" src="" alt="Preview" />
         <form id="deleteForm" th:action="@{/delete}" method="post">
-            <input type="hidden" name="imageKey" id="selectedImageUrl" />
+            <input type="hidden" name="imageKey" id="selectedImageKey" />
             <button type="submit" id="deleteBtn" class="delete-btn">Delete</button>
         </form>
     </div>
@@ -190,16 +190,25 @@
     function openModal(element) {
         const imageUrl = element.querySelector("img").src;
         document.getElementById("modalImage").src = imageUrl;
-        document.getElementById("selectedImageUrl").value = imageUrl;
+
+        const imageKey = imageUrl.substring(imageUrl.lastIndexOf("/") + 1);
+        document.getElementById("selectedImageKey").value = imageKey;
+
+        // document.getElementById("selectedImageUrl").value = imageUrl;
         document.getElementById("imageModal").style.display = "flex";
         document.getElementById("deleteBtn").style.display = "block";
     }
 
     function closeModal() {
         document.getElementById("imageModal").style.display = "none";
-        document.getElementById("deleteBtn").style.display = "none";
-        document.getElementById("selectedImageUrl").value = ""; // Reset input value
+        document.getElementById("deleteBtn").style.display = "none"; // Hide delete button
+
+        let selectedInput = document.getElementById("selectedImageKey");
+        if (selectedInput) {
+            selectedInput.value = "";
+        }
     }
+
 </script>
 
 </body>

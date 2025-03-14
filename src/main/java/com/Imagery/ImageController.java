@@ -65,12 +65,12 @@ public class ImageController {
 
     @PostMapping("/delete")
     public String deleteImage(@RequestParam("imageKey") String imageKey, RedirectAttributes redirectAttributes) {
-        String response = imageService.deleteImage(imageKey);
+        boolean deleted = imageService.deleteImage(imageKey);
 
-        if (response.equals("deleted")) {
+        if (deleted) {
             redirectAttributes.addFlashAttribute("message", "Image deleted successfully.");
         } else {
-            redirectAttributes.addFlashAttribute("message", "Failed to delete image.");
+            redirectAttributes.addFlashAttribute("error", "Failed to delete image.");
         }
 
         return "redirect:/";
