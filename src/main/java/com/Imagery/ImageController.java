@@ -65,7 +65,10 @@ public class ImageController {
 
     @PostMapping("/delete")
     public String deleteImage(@RequestParam("imageKey") String imageKey, RedirectAttributes redirectAttributes) {
-        boolean deleted = imageService.deleteImage(imageKey);
+        String sanitizedKey = imageKey.split("\\?")[0]; // Remove query params
+        boolean deleted = imageService.deleteImage(sanitizedKey);
+//        boolean deleted = imageService.deleteImage(imageKey);
+        System.out.println(imageKey);
 
         if (deleted) {
             redirectAttributes.addFlashAttribute("message", "Image deleted successfully.");

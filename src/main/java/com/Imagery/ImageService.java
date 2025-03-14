@@ -150,6 +150,7 @@ public class ImageService {
 
         return "success";
     }
+
     public boolean deleteImage(String imageKey) {
         try {
             DeleteObjectRequest deleteObjectRequest = DeleteObjectRequest.builder()
@@ -157,10 +158,12 @@ public class ImageService {
                     .key(imageKey)
                     .build();
 
-            s3Client.deleteObject(deleteObjectRequest);
+//            s3Client.deleteObject(deleteObjectRequest);
+            System.out.println(s3Client.deleteObject(deleteObjectRequest));
             return true;
         } catch (S3Exception e) {
             e.printStackTrace();
+            System.out.println("false");
             return false;
         }
     }
