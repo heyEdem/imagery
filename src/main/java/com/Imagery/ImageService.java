@@ -1,54 +1,170 @@
 package com.Imagery;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.ObjectListing;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.*;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.time.Duration;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
-@Slf4j
-@RequiredArgsConstructor
 public class ImageService {
-    private final AmazonS3 s3Client;
 
-    public void uploadImage(MultipartFile file) throws IOException{
-        s3Client.putObject("imagery-app", file.getOriginalFilename(), file.getInputStream(), null);
-    }
+    @Autowired
+    private  S3Client s3Client;
 
-    public List<String> listImages(int page, int size) {
-        ObjectListing objectListing = s3Client.listObjects("imagery-app");
+    @Autowired
+    private S3Presigner s3Presigner;
+
+    private String BUCKET_NAME = "imagery-app";
+
+    // Map to store pagination state
+    private Map<Integer, String> pageTokenMap = new HashMap<>();
+
+    public Map<String, Object> getImages(int page, int size) {
+        Map<String, Object> result = new HashMap<>();
         List<String> imageUrls = new ArrayList<>();
-        String bucketName = "imagery-app";
 
+        List<S3Object> allObjects = new ArrayList<>();
+        String continuationToken = null;
 
-        int start = page * size;  // Calculate starting index
-        int end = start + size;   // Calculate end index
-        int index = 0;
+        do {
+            ListObjectsV2Request.Builder requestBuilder = ListObjectsV2Request.builder()
+                    .bucket(BUCKET_NAME)
+                    .maxKeys(size * (page + 1)); // Fetch more than needed to ensure proper sorting
 
-        while (objectListing != null) {
-            for (S3ObjectSummary objectSummary : objectListing.getObjectSummaries()) {
-                if (index >= start && index < end) {
-                    imageUrls.add(s3Client.getUrl(bucketName, objectSummary.getKey()).toString());
-                }
-                index++;
-                if (index >= end) return imageUrls;  // Stop when page is full
+            if (continuationToken != null) {
+                requestBuilder.continuationToken(continuationToken);
             }
-            if (objectListing.isTruncated()) {
-                objectListing = s3Client.listNextBatchOfObjects(objectListing);
-            } else {
-                break;
-            }
-        }
-        return imageUrls;
-        //todo Implement pagination logic
-        // Return only the items for the requested page
-//        return imageUrls; // Adjust this for pagination
+
+            ListObjectsV2Response response = s3Client.listObjectsV2(requestBuilder.build());
+            allObjects.addAll(response.contents());
+
+            continuationToken = response.isTruncated() ? response.nextContinuationToken() : null;
+        } while (continuationToken != null && allObjects.size() < size * (page + 1));
+
+        // Sort images by latest upload
+        List<S3Object> sortedObjects = allObjects.stream()
+                .sorted(Comparator.comparing(S3Object::lastModified).reversed())
+                .collect(Collectors.toList());
+
+        // Paginate properly
+        int start = page * size;
+        int end = Math.min(start + size, sortedObjects.size());
+
+        imageUrls = sortedObjects.subList(start, end).stream()
+                .filter(s3Object -> isImage(s3Object.key()))
+                .map(obj -> generatePresignedUrl(obj.key()))
+                .collect(Collectors.toList());
+
+        result.put("images", imageUrls);
+        result.put("totalPages", (int) Math.ceil((double) countTotalImages() / size));
+        result.put("currentPage", page);
+        result.put("hasNextPage", end < sortedObjects.size());
+
+        return result;
     }
+
+
+    private long countTotalImages() {
+        long count = 0;
+        String continuationToken = null;
+
+        do {
+            ListObjectsV2Request.Builder requestBuilder = ListObjectsV2Request.builder()
+                    .bucket(BUCKET_NAME);
+
+            if (continuationToken != null) {
+                requestBuilder.continuationToken(continuationToken);
+            }
+
+            ListObjectsV2Response response = s3Client.listObjectsV2(requestBuilder.build());
+
+            count += response.contents().stream()
+                    .filter(s3Object -> isImage(s3Object.key()))
+                    .count();
+
+            continuationToken = response.isTruncated() ? response.nextContinuationToken() : null;
+        } while (continuationToken != null);
+
+        return count;
+    }
+
+    public String generatePresignedUrl(String objectKey) {
+        GetObjectPresignRequest getObjectPresignRequest = GetObjectPresignRequest.builder()
+                .signatureDuration(Duration.ofHours(1))
+                .getObjectRequest(GetObjectRequest.builder()
+                        .bucket(BUCKET_NAME)
+                        .key(objectKey)
+                        .build())
+                .build();
+
+        PresignedGetObjectRequest presignedGetObjectRequest = s3Presigner.presignGetObject(getObjectPresignRequest);
+        return presignedGetObjectRequest.url().toString();
+    }
+
+    private boolean isImage(String key) {
+        return key.toLowerCase().endsWith(".jpg") ||
+                key.toLowerCase().endsWith(".jpeg") ||
+                key.toLowerCase().endsWith(".png");
+    }
+
+    public String uploadMultipleFiles(MultipartFile[] files) throws IOException {
+        // Filter out empty files
+        List<MultipartFile> nonEmptyFiles = Arrays.stream(files)
+                .filter(file -> !file.isEmpty())
+                .collect(Collectors.toList());
+
+        // If all files were empty, return an appropriate response
+        if (nonEmptyFiles.isEmpty()) {
+            return "empty";
+        }
+
+        if (nonEmptyFiles.size() > 5) {
+            return "max";
+        }
+
+        for (MultipartFile file : nonEmptyFiles) {
+            // check file size
+            if (file.getSize() > 1000000) {
+                return "size";
+            }
+            String key = "image_" + UUID.randomUUID() + "_" + file.getOriginalFilename();
+
+            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                    .bucket(BUCKET_NAME)
+                    .key(key)
+                    .contentType(file.getContentType())
+                    .build();
+
+            s3Client.putObject(putObjectRequest, RequestBody.fromBytes(file.getBytes()));
+        }
+
+        return "success";
+    }
+    public String deleteImage(String objectKey) {
+        try {
+            DeleteObjectRequest deleteObjectRequest = DeleteObjectRequest.builder()
+                    .bucket(BUCKET_NAME)
+                    .key(objectKey)
+                    .build();
+
+            s3Client.deleteObject(deleteObjectRequest);
+            return "deleted";
+        } catch (S3Exception e) {
+            e.printStackTrace();
+            return "error";
+        }
+    }
+
 }
+

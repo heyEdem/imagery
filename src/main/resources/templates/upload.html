@@ -1,14 +1,29 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html lang="en" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout" layout:decorate="~{layouts/app.html}">
 <head>
-  <title>Upload Image</title>
+  <title>Home</title>
 </head>
 <body>
-<h1>Upload Image</h1>
-<form method="post" enctype="multipart/form-data" action="/upload">
-  <input type="file" name="file" required/>
-  <button type="submit">Upload</button>
-</form>
-<a href="/">Back to Dashboard</a>
+<section layout:fragment="content">
+  <div class="sub-heading-container">
+    <h3 class="image-heading">Add Images</h3>
+  </div>
+  <div class="form-container">
+    <div th:if="${message}" class="alert alert-danger" role="alert">
+      <p th:text="${message}"></p>
+    </div>
+    <form method="post" action="/upload" enctype="multipart/form-data">
+      <div class="mb">
+        <label style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;" for="images">Images</label>
+        <input type="file" name="images" id="images" multiple>
+      </div>
+      <div class="mb">
+        <button type="submit" class="button">
+          Upload
+        </button>
+      </div>
+    </form>
+  </div>
+</section>
 </body>
 </html>
