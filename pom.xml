@@ -9,10 +9,10 @@
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>org.edem</groupId>
-	<artifactId>Imager</artifactId>
+	<artifactId>Imagery</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>Imager</name>
-	<description>Imager</description>
+	<name>Imagery</name>
+	<description>Imagery</description>
 	<url/>
 	<licenses>
 		<license/>
