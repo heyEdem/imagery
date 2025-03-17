@@ -8,6 +8,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+
 
 import java.util.Map;
 
@@ -65,10 +68,17 @@ public class ImageController {
 
     @PostMapping("/delete")
     public String deleteImage(@RequestParam("imageKey") String imageKey, RedirectAttributes redirectAttributes) {
-        String sanitizedKey = imageKey.split("\\?")[0]; // Remove query params
-        boolean deleted = imageService.deleteImage(sanitizedKey);
-//        boolean deleted = imageService.deleteImage(imageKey);
-        System.out.println(imageKey);
+        // Remove query parameters
+        String sanitizedKey = imageKey.split("\\?")[0];
+
+        // Decode URL encoding (replace %20 with spaces, etc.)
+        String decodedKey = URLDecoder.decode(sanitizedKey, StandardCharsets.UTF_8);
+
+        System.out.println("Received Key: " + imageKey);
+        System.out.println("Sanitized Key: " + sanitizedKey);
+        System.out.println("Decoded Key: " + decodedKey);
+
+        boolean deleted = imageService.deleteImage(decodedKey);
 
         if (deleted) {
             redirectAttributes.addFlashAttribute("message", "Image deleted successfully.");
@@ -78,5 +88,6 @@ public class ImageController {
 
         return "redirect:/";
     }
+
 
 }
