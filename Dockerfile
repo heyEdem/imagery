@@ -19,10 +19,10 @@ FROM eclipse-temurin:21-jre
 WORKDIR /app
 
 # Copy the compiled .jar file from the build stage
-COPY --from=build /app/target/imagery.jar imegery.jar
+COPY --from=build /app/target/imagery.jar imagery.jar
 
 # Expose port 5000
 EXPOSE 5000
 
-# Run the application
+# Run the application .
 CMD ["java", "-jar", "imagery.jar"]
