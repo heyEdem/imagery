@@ -158,7 +158,6 @@ public class ImageService {
                     .key(imageKey)
                     .build();
 
-//            s3Client.deleteObject(deleteObjectRequest);
             System.out.println(s3Client.deleteObject(deleteObjectRequest));
             return true;
         } catch (S3Exception e) {
