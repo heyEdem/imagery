@@ -78,7 +78,7 @@ jobs:
                 Properties:
                   TaskDefinition: "${TASK_DEF_ARN}"
                   LoadBalancerInfo:
-                    ContainerName: "imagery-container"
+                    ContainerName: "Imagery-container"
                     ContainerPort: 5000
                   PlatformVersion: "LATEST"
           EOF
