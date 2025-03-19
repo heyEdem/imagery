@@ -30,4 +30,73 @@ jobs:
         docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        
+  deploy:
+    name: Deploy to ECS
+    needs: build-and-push
+    runs-on: ubuntu-latest
 
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Register new ECS task definition
+        id: task-def
+        run: |
+          # Get current task definition
+          aws ecs describe-task-definition --task-definition imagery-task --query taskDefinition > task-definition.json
+          
+          # Update container image in task definition
+          jq '.containerDefinitions[0].image = "public.ecr.aws/r1b3l1w9/imagery:latest"' task-definition.json > new-task-definition.json
+          
+          # Register new task definition version
+          NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
+            --family imagery-task \
+            --requires-compatibilities FARGATE \
+            --network-mode awsvpc \
+            --cpu 1024 \
+            --memory 2048 \
+            --execution-role-arn $(jq -r '.executionRoleArn' task-definition.json) \
+            --task-role-arn $(jq -r '.taskRoleArn' task-definition.json) \
+            --container-definitions "$(jq '.containerDefinitions' new-task-definition.json)" \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+          
+          echo "task_definition_arn=$NEW_TASK_DEF_ARN" >> $GITHUB_ENV
+
+      - name: Create AppSpec file
+        run: |
+          cat > appspec.yaml << 'EOF'
+          version: 0.0
+          Resources:
+            - TargetService:
+                Type: AWS::ECS::Service
+                Properties:
+                  TaskDefinition: "${TASK_DEF_ARN}"
+                  LoadBalancerInfo:
+                    ContainerName: "imagery-container"
+                    ContainerPort: 8080
+                  PlatformVersion: "LATEST"
+          EOF
+          
+          # Replace placeholder with actual task definition ARN
+          sed -i "s|\${TASK_DEF_ARN}|${{ env.task_definition_arn }}|g" appspec.yaml
+          
+          # Print AppSpec for debugging
+          cat appspec.yaml
+
+      - name: Deploy to AWS CodeDeploy
+        run: |
+          DEPLOYMENT_ID=$(aws deploy create-deployment \
+            --application-name imagery-application \
+            --deployment-group-name imagery-deployment-group \
+            --revision revisionType=AppSpecContent,appSpecContent="{content='$(cat appspec.yaml)'}" \
+            --description "Automated deployment via GitHub Actions" \
+            --query 'deploymentId' \
+            --output text)
+          
+          echo "Started deployment: $DEPLOYMENT_ID"
