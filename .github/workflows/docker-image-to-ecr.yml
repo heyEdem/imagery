@@ -92,8 +92,8 @@ jobs:
       - name: Deploy to AWS CodeDeploy
         run: |
           DEPLOYMENT_ID=$(aws deploy create-deployment \
-            --application-name imagery-application \
-            --deployment-group-name imagery-deployment-group \
+            --application-name Imagery-application \
+            --deployment-group-name Imagery-deployment-group \
             --revision revisionType=AppSpecContent,appSpecContent="{content='$(cat appspec.yaml)'}" \
             --description "Automated deployment via GitHub Actions" \
             --query 'deploymentId' \
