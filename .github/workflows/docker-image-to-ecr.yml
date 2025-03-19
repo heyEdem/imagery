@@ -48,7 +48,7 @@ jobs:
         id: task-def
         run: |
           # Get current task definition
-          aws ecs describe-task-definition --task-definition imagery-task --query taskDefinition > task-definition.json
+          aws ecs describe-task-definition --task-definition Imagery-task --query taskDefinition > task-definition.json
           
           # Update container image in task definition
           jq '.containerDefinitions[0].image = "public.ecr.aws/r1b3l1w9/imagery:latest"' task-definition.json > new-task-definition.json
@@ -79,7 +79,7 @@ jobs:
                   TaskDefinition: "${TASK_DEF_ARN}"
                   LoadBalancerInfo:
                     ContainerName: "imagery-container"
-                    ContainerPort: 8080
+                    ContainerPort: 5000
                   PlatformVersion: "LATEST"
           EOF
           
